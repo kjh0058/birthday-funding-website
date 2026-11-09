@@ -15,32 +15,32 @@
   <div id="app" class="max-w-xl mx-auto px-4 py-8"></div>
 
   <script>
-    // Firebase 설정 정보 (발급받은 설정값으로 교체)
+    // 입력해주신 Firebase 설정 정보
     const firebaseConfig = {
       apiKey: "AIzaSyDHWpJ8cgpXoB2z04tUFxOLCQz5CH93vbU",
       authDomain: "birthday-funding-76521.firebaseapp.com",
       databaseURL: "https://birthday-funding-76521-default-rtdb.firebaseio.com",
       projectId: "birthday-funding-76521",
-      storageBucket: "birthday-funding-76521.firebasestorage.app",
+      storageBucket: "birthday-funding-76521.firebasexstorage.app",
       messagingSenderId: "623358878820",
       appId: "1:623358878820:web:8f502ff6729295de18eb71",
       measurementId: "G-63BJFBH2WV"
     };
 
-    // Firebase 초기화 (설정값이 변경된 경우에만 실행)
+    // Firebase 초기화
     let db, auth;
-    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    try {
       firebase.initializeApp(firebaseConfig);
       auth = firebase.auth();
       db = firebase.firestore();
+    } catch (e) {
+      console.error("Firebase 초기화 오류:", e);
     }
 
-    // 상태 관리
     let currentUser = null;
     let userFundings = [];
     let isCreating = false;
 
-    // 초기화 및 이벤트 리스너
     window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       if (auth) {
@@ -57,10 +57,9 @@
       }
     });
 
-    // 구글 로그인 처리
     async function loginWithGoogle() {
       if (!auth) {
-        alert("Firebase 설정이 필요합니다. 안내 절차를 확인해 주세요!");
+        alert("Firebase 인증 모듈을 불러오지 못했습니다.");
         return;
       }
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -71,7 +70,6 @@
       }
     }
 
-    // 로그아웃 처리
     async function logout() {
       if (auth) await auth.signOut();
       currentUser = null;
@@ -79,19 +77,20 @@
       render();
     }
 
-    // Firestore 데이터 불러오기
     async function loadUserFundings() {
       if (!db || !currentUser) return;
-      const snapshot = await db.collection('fundings')
-        .where('uid', '==', currentUser.uid)
-        .orderBy('createdAt', 'desc')
-        .get();
-      
-      userFundings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      try {
+        const snapshot = await db.collection('fundings')
+          .where('uid', '==', currentUser.uid)
+          .get();
+        userFundings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      } catch (e) {
+        console.error("데이터 로드 실패:", e);
+        userFundings = [];
+      }
       render();
     }
 
-    // 펀딩 새로 생성하기
     async function createFunding(e) {
       e.preventDefault();
       const title = document.getElementById('giftTitle').value;
@@ -120,23 +119,25 @@
       };
 
       if (db) {
-        await db.collection('fundings').add(newFunding);
-        await loadUserFundings();
-      } else {
-        userFundings.unshift({ id: Date.now().toString(), ...newFunding });
+        try {
+          await db.collection('fundings').add(newFunding);
+          await loadUserFundings();
+        } catch (err) {
+          alert("저장 실패: " + err.message);
+          return;
+        }
       }
       
       isCreating = false;
       render();
     }
 
-    // 화면 렌더링
     function render() {
       const container = document.getElementById('app');
       
       if (!currentUser) {
         container.innerHTML = `
-          <div class="bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100">
+          <div class="bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100 mt-10">
             <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-500">
               <i data-lucide="gift" class="w-8 h-8"></i>
             </div>
@@ -150,7 +151,7 @@
         `;
       } else if (isCreating) {
         container.innerHTML = `
-          <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100">
+          <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100 mt-10">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-xl font-bold text-slate-800">새 선물 펀딩 만들기</h2>
               <button onclick="isCreating = false; render();" class="text-slate-400 hover:text-slate-600">
@@ -189,8 +190,7 @@
         `;
       } else {
         container.innerHTML = `
-          <div class="space-y-6">
-            <!-- 사용자 프로필 상단바 -->
+          <div class="space-y-6 mt-6">
             <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <img src="${currentUser.photoURL || 'https://via.placeholder.com/40'}" class="w-10 h-10 rounded-full border" />
@@ -202,7 +202,6 @@
               <button onclick="logout()" class="text-xs text-slate-500 hover:text-slate-800 underline">로그아웃</button>
             </div>
 
-            <!-- 대시보드 메인 -->
             <div class="flex items-center justify-between">
               <h2 class="text-xl font-bold text-slate-800">내 펀딩 목록</h2>
               <button onclick="isCreating = true; render();" class="bg-pink-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl hover:bg-pink-600 transition shadow-sm flex items-center gap-1.5">
@@ -210,7 +209,6 @@
               </button>
             </div>
 
-            <!-- 펀딩 리스트 -->
             ${userFundings.length === 0 ? `
               <div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-dashed border-slate-200">
                 <i data-lucide="gift" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
@@ -220,7 +218,7 @@
               const pct = Math.min(100, Math.round((item.currentAmount / item.targetAmount) * 100));
               return `
                 <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-100 space-y-4">
-                  <div class="flex justify-between items-start">
+                  <div class="flex justify-none flex justify-between items-start">
                     <div>
                       <span class="inline-block bg-pink-100 text-pink-600 text-xs font-bold px-2.5 py-1 rounded-full mb-1">진행 중</span>
                       <h3 class="text-lg font-bold text-slate-800">${item.title}</h3>
@@ -229,18 +227,13 @@
                       <div class="text-lg font-bold text-pink-500">${pct}%</div>
                     </div>
                   </div>
-
-                  <!-- 프로그레스 바 -->
                   <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                     <div class="bg-pink-500 h-full transition-all duration-500" style="width: ${pct}%"></div>
                   </div>
-
                   <div class="flex justify-between text-xs text-slate-500 pt-1">
                     <span>모인 금액: <strong>${item.currentAmount.toLocaleString()}원</strong></span>
                     <span>목표: ${item.targetAmount.toLocaleString()}원</span>
                   </div>
-
-                  <!-- 계좌 정보 -->
                   <div class="bg-slate-50 p-3 rounded-xl text-xs text-slate-600 flex justify-between items-center">
                     <div>
                       <span class="font-bold text-slate-700">${item.bankName}</span> ${item.accountNumber} (${item.accountHolder})
