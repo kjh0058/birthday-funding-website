@@ -3,773 +3,256 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>생일 선물 조르기 펀딩 | GiveTogether</title>
-  <!-- Tailwind CSS CDN -->
+  <title>생일 선물 조르기 펀딩 | B-Day Funding</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Canvas Confetti JS -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-    }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: #f1f5f9;
-      border-radius: 8px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 8px;
-    }
-  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased selection:bg-pink-100 selection:text-pink-600 pb-16">
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+  <div id="app" class="max-w-xl mx-auto px-4 py-8"></div>
 
-  <!-- Toast Notification -->
-  <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-md border border-slate-700 transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-4">
-    <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
-    <span id="toast-message" class="text-sm font-medium">메시지 내용</span>
-  </div>
-
-  <!-- Header -->
-  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 py-3.5 shadow-sm">
-    <div class="max-w-xl mx-auto flex items-center justify-between">
-      <div class="flex items-center gap-2.5">
-        <div class="bg-gradient-to-tr from-pink-500 to-rose-400 text-white p-2.5 rounded-2xl shadow-md shadow-pink-200">
-          <i class="fa-solid fa-gift text-lg"></i>
-        </div>
-        <div>
-          <h1 class="font-black text-lg leading-none bg-gradient-to-r from-pink-600 to-violet-600 bg-clip-text text-transparent">
-            GiveTogether
-          </h1>
-          <p class="text-[10px] text-slate-400 font-semibold tracking-tight">생일 선물 조르기 펀딩</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <!-- Mode Toggle Button -->
-        <button id="mode-toggle-btn" onclick="openPinModal()" class="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition">
-          <i class="fa-solid fa-lock text-xs"></i>
-          <span id="mode-btn-text">선물 받은 사람 인증</span>
-        </button>
-
-        <!-- Host Settings Button -->
-        <button id="host-settings-btn" onclick="openEditModal()" class="hidden p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition" title="펀딩 설정">
-          <i class="fa-solid fa-gear"></i>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Content -->
-  <main class="max-w-xl mx-auto px-4 pt-4 space-y-5">
-
-    <!-- Mode Badge -->
-    <div id="mode-badge" class="bg-gradient-to-r from-slate-100 to-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-slate-600 shadow-sm">
-      <div class="flex items-center gap-2">
-        <i class="fa-solid fa-eye-slash text-slate-400"></i>
-        <span id="mode-description">친구 모드 (개별 모금 금액은 비공개 처리됩니다)</span>
-      </div>
-    </div>
-
-    <!-- Birthday Banner Card -->
-    <div class="bg-gradient-to-br from-violet-600 via-purple-600 to-pink-500 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
-      <div class="absolute -right-8 -bottom-8 w-36 h-36 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-pink-100 text-xs font-bold uppercase tracking-wide">
-          <i class="fa-solid fa-cake-candles"></i> B-Day Co-Funding
-        </div>
-        <button id="host-bank-btn" onclick="openBankModal()" class="hidden bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1 rounded-full font-semibold items-center gap-1 backdrop-blur-sm transition border border-white/20">
-          <i class="fa-solid fa-credit-card"></i> 계좌 관리
-        </button>
-      </div>
-
-      <h2 id="display-host-title" class="text-2xl font-black mb-1.5">
-        김민수님의 생일 선물 조르기🎂
-      </h2>
-      <p id="display-description" class="text-pink-100 text-sm font-light leading-relaxed">
-        "혼자 사기엔 부담스럽지만, 친구들이 만 원씩만 보태주면 갖고 싶던 헤드폰을 살 수 있어! ❤️"
-      </p>
-
-      <div class="mt-5 pt-3 border-t border-white/15 flex items-center justify-between text-xs font-semibold">
-        <div class="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-white">
-          <i class="fa-regular fa-clock text-pink-300"></i> 생일: <span id="display-birthday">2026-11-20</span>
-        </div>
-        <span class="flex items-center gap-1 text-pink-200">
-          <i class="fa-solid fa-shield-halved text-emerald-400"></i> 수령 계좌 연동 완료
-        </span>
-      </div>
-    </div>
-
-    <!-- Main Gift & Progress Card -->
-    <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-5">
-      <div class="relative rounded-2xl overflow-hidden aspect-video bg-slate-100 group">
-        <img id="display-gift-image" src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80" alt="선물 이미지" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-        <div class="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
-          <i class="fa-solid fa-heart text-pink-500"></i> 위시리스트 1위
-        </div>
-      </div>
-
-      <div>
-        <span class="text-[11px] font-extrabold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-md uppercase tracking-wide">
-          Target Gift
-        </span>
-        <h3 id="display-gift-name" class="text-xl font-bold text-slate-800 mt-1.5 leading-snug">
-          Sony WH-1000XM5 무선 노이즈 캔슬링 헤드폰
-        </h3>
-      </div>
-
-      <!-- Progress Section -->
-      <div class="bg-slate-50 p-4.5 rounded-2xl space-y-3 border border-slate-100">
-        <div class="flex justify-between items-baseline">
-          <div id="progress-amount-text" class="flex items-baseline gap-1.5">
-            <!-- Dynamic Amount text inserted via JS -->
-          </div>
-          <span id="display-percent" class="text-xl font-black text-pink-600">0%</span>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden p-0.5 shadow-inner">
-          <div id="display-progress-bar" class="h-full bg-gradient-to-r from-pink-500 via-rose-500 to-violet-600 rounded-full transition-all duration-700 ease-out shadow-sm" style="width: 0%"></div>
-        </div>
-
-        <div class="flex justify-between text-xs text-slate-500 pt-1 font-medium">
-          <span id="display-sub-info font-bold">1인당 권장 펀딩: <strong class="text-violet-600 font-bold" id="display-per-person">10,000원</strong></span>
-          <span>목표 인원: <strong class="text-slate-800 font-bold" id="display-target-count">5명</strong></span>
-        </div>
-      </div>
-
-      <!-- Bank Info Box -->
-      <div class="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between shadow-sm">
-        <div class="space-y-0.5">
-          <div class="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
-            <i class="fa-solid fa-building-columns text-pink-400"></i> 수령 계좌 (직접 송금)
-          </div>
-          <div id="display-bank-info" class="text-sm font-bold tracking-wide">
-            카카오뱅크 3333-12-3456789
-          </div>
-          <div id="display-bank-holder" class="text-[11px] text-slate-300">예금주: 김민수</div>
-        </div>
-        <button onclick="copyBankAccount()" class="bg-white/10 hover:bg-white/20 active:scale-95 text-white text-xs px-3.5 py-2.5 rounded-xl transition font-semibold flex items-center gap-1.5 border border-white/10">
-          <i class="fa-regular fa-copy"></i> 복사
-        </button>
-      </div>
-
-      <!-- 100% Reached Celebration Banner -->
-      <div id="celebration-banner" class="hidden bg-gradient-to-r from-amber-50 to-emerald-50 border border-emerald-200 p-4 rounded-2xl text-center space-y-2 shadow-sm animate-fade-in">
-        <div class="inline-flex p-3 bg-emerald-500 text-white rounded-full shadow-md">
-          <i class="fa-solid fa-trophy text-lg"></i>
-        </div>
-        <h4 class="font-bold text-slate-900 text-base">펀딩 100% 달성 성공! 🎉</h4>
-        <p class="text-xs text-slate-600">친구들의 소중한 마음이 모여 위시리스트 선물을 구매할 수 있습니다!</p>
-      </div>
-
-      <!-- Main Action Buttons -->
-      <div class="grid grid-cols-2 gap-3 pt-1">
-        <button onclick="copyPageLink()" class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold py-3.5 rounded-2xl transition">
-          <i class="fa-solid fa-share-nodes"></i>
-          <span>링크 공유하기</span>
-        </button>
-        <button onclick="openFundModal()" class="flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-violet-600 hover:opacity-95 active:scale-95 text-white font-bold py-3.5 rounded-2xl transition shadow-lg shadow-pink-200">
-          <i class="fa-solid fa-heart"></i>
-          <span>펀딩 참여하기</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Friend Slots Grid Card -->
-    <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <i class="fa-solid fa-users text-violet-600"></i>
-          <h3 class="font-bold text-slate-900 text-base">친구 참여 슬롯 현황</h3>
-        </div>
-        <span id="slot-count-badge" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-          0 / 5 명 완료
-        </span>
-      </div>
-
-      <!-- Dynamic Slots -->
-      <div id="slots-grid" class="grid grid-cols-5 gap-2 pt-1">
-        <!-- Rendered by JS -->
-      </div>
-    </div>
-
-    <!-- Messages & Contributions Feed -->
-    <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 space-y-4">
-      <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
-        <i class="fa-solid fa-comments text-amber-500"></i>
-        친구들의 응원 메시지 (<span id="message-count">0</span>)
-      </h3>
-
-      <div id="messages-list" class="space-y-3">
-        <!-- Rendered by JS -->
-      </div>
-    </div>
-
-  </main>
-
-  <!-- PIN Modal -->
-  <div id="pin-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div class="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl">
-      <div class="text-center space-y-1">
-        <div class="w-12 h-12 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center mx-auto mb-2">
-          <i class="fa-solid fa-lock text-xl"></i>
-        </div>
-        <h3 class="text-lg font-bold text-slate-900">선물 받은 사람 인증</h3>
-        <p class="text-xs text-slate-500">전체 모금액 및 상세 입금 내역 확인용 PIN 번호 입력</p>
-      </div>
-
-      <form onsubmit="handlePinSubmit(event)" class="space-y-4">
-        <div>
-          <input id="pin-input" type="password" maxlength="4" placeholder="PIN 번호 4자리 (기본: 1234)" class="w-full text-center text-xl font-bold tracking-widest px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500" />
-        </div>
-        <div class="flex gap-2">
-          <button type="button" onclick="closePinModal()" class="w-1/2 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl text-xs hover:bg-slate-200 transition">취소</button>
-          <button type="submit" class="w-1/2 bg-violet-600 text-white font-bold py-3 rounded-xl text-xs hover:bg-violet-700 transition shadow-md shadow-violet-200">인증하기</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Bank Account Management Modal -->
-  <div id="bank-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div class="bg-white w-full max-w-md rounded-3xl p-6 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <i class="fa-solid fa-credit-card text-violet-600"></i> 수령 계좌 관리
-        </h3>
-        <button onclick="closeBankModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
-      </div>
-
-      <form onsubmit="handleBankSubmit(event)" class="space-y-3">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">은행 선택</label>
-          <select id="input-bank-name" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20">
-            <option value="카카오뱅크">카카오뱅크</option>
-            <option value="토스뱅크">토스뱅크</option>
-            <option value="KB국민은행">KB국민은행</option>
-            <option value="신한은행">신한은행</option>
-            <option value="NH농협은행">NH농협은행</option>
-            <option value="하나은행">하나은행</option>
-            <option value="우리은행">우리은행</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">계좌 번호</label>
-          <input id="input-account-number" type="text" placeholder="'-' 포함 입력" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">예금주 명</label>
-          <input id="input-holder-name" type="text" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20" />
-        </div>
-
-        <button type="submit" class="w-full bg-violet-600 text-white font-bold py-3 rounded-xl hover:bg-violet-700 transition text-sm shadow-md mt-2">
-          계좌 설정 저장
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Contribution Modal -->
-  <div id="fund-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <i class="fa-solid fa-gift text-pink-500"></i> 선물 펀딩 참여하기
-        </h3>
-        <button onclick="closeFundModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
-      </div>
-
-      <!-- Transfer Guide Box -->
-      <div class="bg-slate-900 text-white p-4 rounded-2xl space-y-3">
-        <div class="text-xs text-slate-400 font-medium">송금받을 계좌 정보</div>
-        <div class="flex items-center justify-between">
-          <span id="fund-modal-account" class="font-bold text-sm">
-            카카오뱅크 3333-12-3456789 (김민수)
-          </span>
-          <button type="button" onclick="copyBankAccount()" class="bg-pink-600 hover:bg-pink-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 shadow-sm">
-            <i class="fa-regular fa-copy"></i> 복사
-          </button>
-        </div>
-
-        <div class="pt-2 border-t border-slate-800 flex gap-2">
-          <button type="button" onclick="quickPay('toss')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold py-2 rounded-xl transition flex items-center justify-center gap-1">
-            <span>토스 송금</span>
-            <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-          </button>
-          <button type="button" onclick="quickPay('kakao')" class="flex-1 bg-amber-400 hover:bg-amber-500 text-slate-900 text-[11px] font-bold py-2 rounded-xl transition flex items-center justify-center gap-1">
-            <span>카카오 송금</span>
-            <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
-          </button>
-        </div>
-      </div>
-
-      <form onsubmit="handleContributionSubmit(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">보내는 사람 이름</label>
-          <input id="guest-name" type="text" placeholder="예: 홍길동" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 text-sm" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">펀딩 금액 선택</label>
-          <div class="grid grid-cols-3 gap-2" id="amount-options">
-            <button type="button" onclick="selectAmount(10000)" class="amount-btn active py-2.5 rounded-xl text-xs font-bold border transition bg-pink-50 border-pink-500 text-pink-600 shadow-sm" data-amount="10000">10,000원</button>
-            <button type="button" onclick="selectAmount(20000)" class="amount-btn py-2.5 rounded-xl text-xs font-bold border transition bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100" data-amount="20000">20,000원</button>
-            <button type="button" onclick="selectAmount(50000)" class="amount-btn py-2.5 rounded-xl text-xs font-bold border transition bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100" data-amount="50000">50,000원</button>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">생일 축하 메시지</label>
-          <textarea id="guest-message" rows="3" placeholder="축하 메시지를 남겨주세요!" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500/20 text-sm resize-none"></textarea>
-        </div>
-
-        <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center gap-2 text-xs text-emerald-800">
-          <i class="fa-solid fa-circle-check text-emerald-600"></i>
-          <span>계좌 입금 후 등록 완료 버튼을 눌러 주시면 현황에 반영됩니다.</span>
-        </div>
-
-        <button type="submit" class="w-full bg-gradient-to-r from-pink-500 to-violet-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-pink-200 hover:opacity-95 transition flex items-center justify-center gap-2">
-          <i class="fa-solid fa-paper-plane"></i>
-          <span>펀딩 참여 등록하기</span>
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Host Funding Edit Modal -->
-  <div id="edit-modal" class="fixed inset-0 z-50 hidden flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4">
-    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 class="text-lg font-bold text-slate-900">펀딩 및 선물 설정 수정</h3>
-        <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
-      </div>
-
-      <form onsubmit="handleEditGoalSubmit(event)" class="space-y-3">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">생일자 이름</label>
-          <input id="edit-host-name" type="text" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">생일 날짜</label>
-          <input id="edit-birthday" type="date" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">원하는 선물 이름</label>
-          <input id="edit-gift-name" type="text" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" />
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">목표 총 금액(원)</label>
-            <input id="edit-total-amount" type="number" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">목표 인원수(명)</label>
-            <input id="edit-target-count" type="number" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" />
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">선물 이미지 URL</label>
-          <input id="edit-gift-image" type="text" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">친구들에게 남길 한마디</label>
-          <textarea id="edit-description" rows="2" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm resize-none"></textarea>
-        </div>
-
-        <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition text-sm shadow-md">
-          설정 저장하기
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Application Logic JS -->
   <script>
-    // Initial App State
-    const DEFAULT_PIN = "1234";
-    let isHostMode = false;
-    let selectedFundAmount = 10000;
-
-    let state = {
-      hostName: '김민수',
-      birthdayDate: '2026-11-20',
-      giftName: 'Sony WH-1000XM5 무선 노이즈 캔슬링 헤드폰',
-      giftImage: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80',
-      totalAmount: 50000,
-      targetCount: 5,
-      description: '혼자 사기엔 부담스럽지만, 친구들이 만 원씩만 보태주면 갖고 싶던 헤드폰을 살 수 있어! ❤️',
-      bankName: '카카오뱅크',
-      accountNumber: '3333-12-3456789',
-      holderName: '김민수',
-      contributors: [
-        { id: 1, name: '지은', amount: 10000, message: '생일 너무 축하해! 헤드폰 끼고 신나게 음악 들어라 🎧', date: '10분 전' },
-        { id: 2, name: '현우', amount: 10000, message: '맛있는 거 먹으려다 너 생일이라 보탬! 🎁', date: '1시간 전' }
-      ]
+    // Firebase 설정 정보 (발급받은 설정값으로 교체)
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
     };
 
-    // Load state from localStorage on init
-    function loadState() {
-      const saved = localStorage.getItem('bday_funding_state');
-      if (saved) {
-        try {
-          state = JSON.parse(saved);
-        } catch(e) {
-          console.error('Failed to parse saved state', e);
-        }
-      }
+    // Firebase 초기화 (설정값이 변경된 경우에만 실행)
+    let db, auth;
+    if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+      firebase.initializeApp(firebaseConfig);
+      auth = firebase.auth();
+      db = firebase.firestore();
     }
 
-    function saveState() {
-      localStorage.setItem('bday_funding_state', JSON.stringify(state));
-    }
+    // 상태 관리
+    let currentUser = null;
+    let userFundings = [];
+    let isCreating = false;
 
-    // Render UI based on current State & Host Mode
-    function render() {
-      const currentTotal = state.contributors.reduce((acc, c) => acc + c.amount, 0);
-      const percent = Math.min(100, Math.round((currentTotal / state.totalAmount) * 100));
-      const perPerson = Math.round(state.totalAmount / state.targetCount);
-
-      // Render Header & Banners
-      document.getElementById('display-host-title').innerText = `${state.hostName}님의 생일 선물 조르기🎂`;
-      document.getElementById('display-description').innerText = `"${state.description}"`;
-      document.getElementById('display-birthday').innerText = state.birthdayDate;
-      document.getElementById('display-gift-name').innerText = state.giftName;
-      document.getElementById('display-gift-image').src = state.giftImage;
-      document.getElementById('display-per-person').innerText = `${perPerson.toLocaleString()}원`;
-      document.getElementById('display-target-count').innerText = `${state.targetCount}명`;
-
-      // Bank Display
-      const bankStr = `${state.bankName} ${state.accountNumber}`;
-      document.getElementById('display-bank-info').innerText = bankStr;
-      document.getElementById('display-bank-holder').innerText = `예금주: ${state.holderName}`;
-      document.getElementById('fund-modal-account').innerText = `${bankStr} (${state.holderName})`;
-
-      // Mode UI Controls
-      const modeBtnText = document.getElementById('mode-btn-text');
-      const modeToggleBtn = document.getElementById('mode-toggle-btn');
-      const modeBadge = document.getElementById('mode-badge');
-      const modeDesc = document.getElementById('mode-description');
-      const hostBankBtn = document.getElementById('host-bank-btn');
-      const hostSettingsBtn = document.getElementById('host-settings-btn');
-      const progressAmountText = document.getElementById('progress-amount-text');
-
-      if (isHostMode) {
-        modeBtnText.innerText = '주최자 모드 (ON)';
-        modeToggleBtn.className = 'flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition shadow-sm';
-        modeBadge.className = 'bg-emerald-50/70 border border-emerald-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-emerald-800 shadow-sm';
-        modeDesc.innerText = '주최자 모드 (전체 입금액과 상세 내역이 표시됩니다)';
-        hostBankBtn.classList.remove('hidden');
-        hostBankBtn.classList.add('flex');
-        hostSettingsBtn.classList.remove('hidden');
-
-        progressAmountText.innerHTML = `
-          <span class="text-2xl font-black text-slate-900">${currentTotal.toLocaleString()}원</span>
-          <span class="text-xs text-slate-500 font-medium">/ ${state.totalAmount.toLocaleString()}원</span>
-        `;
-      } else {
-        modeBtnText.innerText = '선물 받은 사람 인증';
-        modeToggleBtn.className = 'flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition';
-        modeBadge.className = 'bg-gradient-to-r from-slate-100 to-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-slate-600 shadow-sm';
-        modeDesc.innerText = '친구 모드 (개별 모금 금액은 비공개 처리됩니다)';
-        hostBankBtn.classList.add('hidden');
-        hostBankBtn.classList.remove('flex');
-        hostSettingsBtn.classList.add('hidden');
-
-        progressAmountText.innerHTML = `
-          <span class="text-2xl font-black text-slate-900">펀딩 진행 중</span>
-          <span class="text-xs text-slate-500 font-medium">(${state.contributors.length}/${state.targetCount}명 참여)</span>
-        `;
-      }
-
-      // Progress & Celebrations
-      document.getElementById('display-percent').innerText = `${percent}%`;
-      document.getElementById('display-progress-bar').style.width = `${percent}%`;
-
-      const celebrationBanner = document.getElementById('celebration-banner');
-      if (percent >= 100) {
-        celebrationBanner.classList.remove('hidden');
-      } else {
-        celebrationBanner.classList.add('hidden');
-      }
-
-      // Render Slots
-      const slotsGrid = document.getElementById('slots-grid');
-      slotsGrid.innerHTML = '';
-      document.getElementById('slot-count-badge').innerText = `${state.contributors.length} / ${state.targetCount} 명 완료`;
-
-      for (let i = 0; i < state.targetCount; i++) {
-        const item = state.contributors[i];
-        const isFilled = !!item;
-
-        const slotEl = document.createElement('div');
-        slotEl.className = `flex flex-col items-center p-3 rounded-2xl border transition-all ${
-          isFilled 
-            ? 'bg-pink-50/60 border-pink-200 text-pink-900 shadow-sm' 
-            : 'bg-slate-50 border-dashed border-slate-200 text-slate-400'
-        }`;
-
-        const initial = isFilled ? item.name.slice(0, 1) : (i + 1);
-        const nameText = isFilled ? item.name : '대기중';
-        const amountOrStatus = isFilled 
-          ? (isHostMode ? `${item.amount.toLocaleString()}원` : '완료') 
-          : '보태기';
-
-        slotEl.innerHTML = `
-          <div class="w-10 h-10 rounded-full flex items-center justify-center mb-1.5 text-sm font-bold transition-transform ${
-            isFilled ? 'bg-pink-500 text-white shadow-md shadow-pink-200 scale-105' : 'bg-slate-200 text-slate-400'
-          }">
-            ${initial}
-          </div>
-          <span class="text-xs font-semibold truncate w-full text-center">${nameText}</span>
-          <span class="text-[10px] font-medium text-pink-600 mt-0.5">${amountOrStatus}</span>
-        `;
-        slotsGrid.appendChild(slotEl);
-      }
-
-      // Render Messages
-      const messagesList = document.getElementById('messages-list');
-      messagesList.innerHTML = '';
-      document.getElementById('message-count').innerText = state.contributors.length;
-
-      if (state.contributors.length === 0) {
-        messagesList.innerHTML = '<p class="text-center text-slate-400 text-sm py-8">첫 번째 친구가 되어 생일 축하 메시지를 남겨보세요! 🎉</p>';
-      } else {
-        state.contributors.forEach(c => {
-          const msgEl = document.createElement('div');
-          msgEl.className = 'p-4 bg-slate-50 rounded-2xl space-y-1.5 border border-slate-100';
-
-          const tagHtml = isHostMode 
-            ? `<span class="text-xs font-bold text-pink-600 bg-pink-100/70 px-2 py-0.5 rounded-md">+${c.amount.toLocaleString()}원</span>`
-            : `<span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1"><i class="fa-solid fa-check text-[10px]"></i> 송금 완료</span>`;
-
-          msgEl.innerHTML = `
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-slate-800 text-sm">${escapeHtml(c.name)}</span>
-                ${tagHtml}
-              </div>
-              <span class="text-[11px] text-slate-400">${c.date}</span>
-            </div>
-            <p class="text-xs text-slate-600 font-normal leading-relaxed">${escapeHtml(c.message)}</p>
-          `;
-          messagesList.appendChild(msgEl);
+    // 초기화 및 이벤트 리스너
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      if (auth) {
+        auth.onAuthStateChanged(user => {
+          currentUser = user;
+          if (user) {
+            loadUserFundings();
+          } else {
+            render();
+          }
         });
-      }
-    }
-
-    // Helper: Escape HTML string
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    }
-
-    // Toast Utility
-    function showToast(msg) {
-      const toast = document.getElementById('toast');
-      document.getElementById('toast-message').innerText = msg;
-      toast.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-4');
-      toast.classList.add('opacity-100', 'translate-y-0');
-      setTimeout(() => {
-        toast.classList.remove('opacity-100', 'translate-y-0');
-        toast.classList.add('opacity-0', 'pointer-events-none', '-translate-y-4');
-      }, 3000);
-    }
-
-    // Copy Handlers
-    function copyBankAccount() {
-      const text = `${state.bankName} ${state.accountNumber}`;
-      copyToClipboard(text);
-      showToast('계좌번호가 클립보드에 복사되었습니다!');
-    }
-
-    function copyPageLink() {
-      copyToClipboard(window.location.href);
-      showToast('펀딩 링크가 클립보드에 복사되었습니다!');
-    }
-
-    function copyToClipboard(text) {
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text);
       } else {
-        const input = document.createElement('textarea');
-        input.value = text;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
-      }
-    }
-
-    // PIN Authentication
-    function openPinModal() {
-      if (isHostMode) {
-        isHostMode = false;
         render();
-        showToast('친구 모드로 전환되었습니다.');
+      }
+    });
+
+    // 구글 로그인 처리
+    async function loginWithGoogle() {
+      if (!auth) {
+        alert("Firebase 설정이 필요합니다. 안내 절차를 확인해 주세요!");
         return;
       }
-      document.getElementById('pin-input').value = '';
-      document.getElementById('pin-modal').classList.remove('hidden');
-    }
-
-    function closePinModal() {
-      document.getElementById('pin-modal').classList.add('hidden');
-    }
-
-    function handlePinSubmit(e) {
-      e.preventDefault();
-      const val = document.getElementById('pin-input').value;
-      if (val === DEFAULT_PIN) {
-        isHostMode = true;
-        closePinModal();
-        render();
-        showToast('선물 받은 사람(주최자) 모드로 전환되었습니다.');
-      } else {
-        showToast('PIN 번호가 일치하지 않습니다. (기본: 1234)');
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await auth.signInWithPopup(provider);
+      } catch (err) {
+        alert("로그인 실패: " + err.message);
       }
     }
 
-    // Bank Settings Modal
-    function openBankModal() {
-      document.getElementById('input-bank-name').value = state.bankName;
-      document.getElementById('input-account-number').value = state.accountNumber;
-      document.getElementById('input-holder-name').value = state.holderName;
-      document.getElementById('bank-modal').classList.remove('hidden');
-    }
-
-    function closeBankModal() {
-      document.getElementById('bank-modal').classList.add('hidden');
-    }
-
-    function handleBankSubmit(e) {
-      e.preventDefault();
-      state.bankName = document.getElementById('input-bank-name').value;
-      state.accountNumber = document.getElementById('input-account-number').value;
-      state.holderName = document.getElementById('input-holder-name').value;
-      saveState();
+    // 로그아웃 처리
+    async function logout() {
+      if (auth) await auth.signOut();
+      currentUser = null;
+      userFundings = [];
       render();
-      closeBankModal();
-      showToast('수령 계좌 정보가 수정되었습니다.');
     }
 
-    // Fund Modal
-    function openFundModal() {
-      document.getElementById('guest-name').value = '';
-      document.getElementById('guest-message').value = '';
-      selectAmount(10000);
-      document.getElementById('fund-modal').classList.remove('hidden');
+    // Firestore 데이터 불러오기
+    async function loadUserFundings() {
+      if (!db || !currentUser) return;
+      const snapshot = await db.collection('fundings')
+        .where('uid', '==', currentUser.uid)
+        .orderBy('createdAt', 'desc')
+        .get();
+      
+      userFundings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      render();
     }
 
-    function closeFundModal() {
-      document.getElementById('fund-modal').classList.add('hidden');
-    }
-
-    function selectAmount(amt) {
-      selectedFundAmount = amt;
-      const btns = document.querySelectorAll('.amount-btn');
-      btns.forEach(b => {
-        if (Number(b.dataset.amount) === amt) {
-          b.className = 'amount-btn active py-2.5 rounded-xl text-xs font-bold border transition bg-pink-50 border-pink-500 text-pink-600 shadow-sm';
-        } else {
-          b.className = 'amount-btn py-2.5 rounded-xl text-xs font-bold border transition bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100';
-        }
-      });
-    }
-
-    function quickPay(app) {
-      copyBankAccount();
-      if (app === 'toss') {
-        showToast('계좌 복사 완료! 토스 앱으로 이동합니다.');
-      } else {
-        showToast('계좌 복사 완료! 카카오뱅크 앱으로 이동합니다.');
-      }
-    }
-
-    function handleContributionSubmit(e) {
+    // 펀딩 새로 생성하기
+    async function createFunding(e) {
       e.preventDefault();
-      const name = document.getElementById('guest-name').value.trim();
-      const message = document.getElementById('guest-message').value.trim() || '생일 너무 축하해!! 🎉';
+      const title = document.getElementById('giftTitle').value;
+      const amount = parseInt(document.getElementById('giftAmount').value, 10);
+      const bank = document.getElementById('bankName').value;
+      const account = document.getElementById('accountNumber').value;
+      const holder = document.getElementById('accountHolder').value;
 
-      if (!name) {
-        showToast('이름을 입력해 주세요.');
+      if (!title || !amount || !bank || !account) {
+        alert("모든 필수 항목을 입력해 주세요.");
         return;
       }
 
-      const newContributor = {
-        id: Date.now(),
-        name,
-        amount: selectedFundAmount,
-        message,
-        date: '방금 전'
+      const newFunding = {
+        uid: currentUser.uid,
+        userName: currentUser.displayName || "익명",
+        userEmail: currentUser.email,
+        title,
+        targetAmount: amount,
+        currentAmount: 0,
+        bankName: bank,
+        accountNumber: account,
+        accountHolder: holder,
+        contributors: [],
+        createdAt: new Date().toISOString()
       };
 
-      state.contributors.unshift(newContributor);
-      saveState();
-      render();
-      closeFundModal();
-
-      // Fire confetti animation
-      if (typeof confetti === 'function') {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
+      if (db) {
+        await db.collection('fundings').add(newFunding);
+        await loadUserFundings();
+      } else {
+        userFundings.unshift({ id: Date.now().toString(), ...newFunding });
       }
-
-      showToast(`🎉 ${name}님의 펀딩 참여가 등록되었습니다!`);
-    }
-
-    // Edit Goal Modal
-    function openEditModal() {
-      document.getElementById('edit-host-name').value = state.hostName;
-      document.getElementById('edit-birthday').value = state.birthdayDate;
-      document.getElementById('edit-gift-name').value = state.giftName;
-      document.getElementById('edit-total-amount').value = state.totalAmount;
-      document.getElementById('edit-target-count').value = state.targetCount;
-      document.getElementById('edit-gift-image').value = state.giftImage;
-      document.getElementById('edit-description').value = state.description;
-      document.getElementById('edit-modal').classList.remove('hidden');
-    }
-
-    function closeEditModal() {
-      document.getElementById('edit-modal').classList.add('hidden');
-    }
-
-    function handleEditGoalSubmit(e) {
-      e.preventDefault();
-      state.hostName = document.getElementById('edit-host-name').value;
-      state.birthdayDate = document.getElementById('edit-birthday').value;
-      state.giftName = document.getElementById('edit-gift-name').value;
-      state.totalAmount = Number(document.getElementById('edit-total-amount').value);
-      state.targetCount = Number(document.getElementById('edit-target-count').value);
-      state.giftImage = document.getElementById('edit-gift-image').value;
-      state.description = document.getElementById('edit-description').value;
-      saveState();
+      
+      isCreating = false;
       render();
-      closeEditModal();
-      showToast('펀딩 및 선물 정보가 수정되었습니다.');
     }
 
-    // Initialization
-    window.addEventListener('DOMContentLoaded', () => {
-      loadState();
-      render();
-    });
+    // 화면 렌더링
+    function render() {
+      const container = document.getElementById('app');
+      
+      if (!currentUser) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100">
+            <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-500">
+              <i data-lucide="gift" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-800 mb-2">생일 선물 펀딩 만들기</h1>
+            <p class="text-slate-500 text-sm mb-6">구글 계정으로 로그인하여 나만의 생일 선물 펀딩을 생성하고 친구들에게 공유해 보세요!</p>
+            <button onclick="loginWithGoogle()" class="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl shadow-sm flex items-center justify-center gap-3 transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              Google 계정으로 시작하기
+            </button>
+          </div>
+        `;
+      } else if (isCreating) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-xl font-bold text-slate-800">새 선물 펀딩 만들기</h2>
+              <button onclick="isCreating = false; render();" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-6 h-6"></i>
+              </button>
+            </div>
+            <form onsubmit="createFunding(event)" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">원하는 선물 이름</label>
+                <input type="text" id="giftTitle" placeholder="예: 소니 헤드폰 WH-1000XM5" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">선물 총 가격 (원)</label>
+                <input type="number" id="giftAmount" placeholder="380000" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">입금 받을 은행</label>
+                  <input type="text" id="bankName" placeholder="카카오뱅크" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">예금주</label>
+                  <input type="text" id="accountHolder" placeholder="김지홍" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">계좌번호</label>
+                <input type="text" id="accountNumber" placeholder="3333-01-2345678" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+              </div>
+              <div class="pt-4 flex gap-3">
+                <button type="button" onclick="isCreating = false; render();" class="w-1/2 bg-slate-100 text-slate-600 font-medium py-3 rounded-xl hover:bg-slate-200 transition">취소</button>
+                <button type="submit" class="w-1/2 bg-pink-500 text-white font-semibold py-3 rounded-xl hover:bg-pink-600 shadow-md shadow-pink-200 transition">게시하기</button>
+              </div>
+            </form>
+          </div>
+        `;
+      } else {
+        container.innerHTML = `
+          <div class="space-y-6">
+            <!-- 사용자 프로필 상단바 -->
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img src="${currentUser.photoURL || 'https://via.placeholder.com/40'}" class="w-10 h-10 rounded-full border" />
+                <div>
+                  <div class="font-bold text-slate-800 text-sm">${currentUser.displayName || '사용자'}</div>
+                  <div class="text-xs text-slate-400">${currentUser.email}</div>
+                </div>
+              </div>
+              <button onclick="logout()" class="text-xs text-slate-500 hover:text-slate-800 underline">로그아웃</button>
+            </div>
+
+            <!-- 대시보드 메인 -->
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-slate-800">내 펀딩 목록</h2>
+              <button onclick="isCreating = true; render();" class="bg-pink-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl hover:bg-pink-600 transition shadow-sm flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-4 h-4"></i> 새 펀딩 등록
+              </button>
+            </div>
+
+            <!-- 펀딩 리스트 -->
+            ${userFundings.length === 0 ? `
+              <div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-dashed border-slate-200">
+                <i data-lucide="gift" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+                <p class="text-sm">아직 게시한 펀딩이 없습니다.<br>'새 펀딩 등록' 버튼을 눌러보세요!</p>
+              </div>
+            ` : userFundings.map(item => {
+              const pct = Math.min(100, Math.round((item.currentAmount / item.targetAmount) * 100));
+              return `
+                <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-100 space-y-4">
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <span class="inline-block bg-pink-100 text-pink-600 text-xs font-bold px-2.5 py-1 rounded-full mb-1">진행 중</span>
+                      <h3 class="text-lg font-bold text-slate-800">${item.title}</h3>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-lg font-bold text-pink-500">${pct}%</div>
+                    </div>
+                  </div>
+
+                  <!-- 프로그레스 바 -->
+                  <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                    <div class="bg-pink-500 h-full transition-all duration-500" style="width: ${pct}%"></div>
+                  </div>
+
+                  <div class="flex justify-between text-xs text-slate-500 pt-1">
+                    <span>모인 금액: <strong>${item.currentAmount.toLocaleString()}원</strong></span>
+                    <span>목표: ${item.targetAmount.toLocaleString()}원</span>
+                  </div>
+
+                  <!-- 계좌 정보 -->
+                  <div class="bg-slate-50 p-3 rounded-xl text-xs text-slate-600 flex justify-between items-center">
+                    <div>
+                      <span class="font-bold text-slate-700">${item.bankName}</span> ${item.accountNumber} (${item.accountHolder})
+                    </div>
+                    <button onclick="navigator.clipboard.writeText('${item.accountNumber}'); alert('계좌번호가 복사되었습니다!');" class="text-pink-500 hover:underline">복사</button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+      lucide.createIcons();
+    }
   </script>
 </body>
 </html>
