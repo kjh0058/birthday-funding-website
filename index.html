@@ -11,17 +11,17 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans pb-12">
   <div id="app" class="max-w-xl mx-auto px-4 py-8"></div>
 
   <script>
-    // 입력해주신 Firebase 설정 정보
+    // Firebase 설정 정보
     const firebaseConfig = {
       apiKey: "AIzaSyDHWpJ8cgpXoB2z04tUFxOLCQz5CH93vbU",
       authDomain: "birthday-funding-76521.firebaseapp.com",
       databaseURL: "https://birthday-funding-76521-default-rtdb.firebaseio.com",
       projectId: "birthday-funding-76521",
-      storageBucket: "birthday-funding-76521.firebasexstorage.app",
+      storageBucket: "birthday-funding-76521.firebasestorage.app",
       messagingSenderId: "623358878820",
       appId: "1:623358878820:web:8f502ff6729295de18eb71",
       measurementId: "G-63BJFBH2WV"
@@ -38,22 +38,21 @@
     }
 
     let currentUser = null;
-    let userFundings = [];
+    let allFundings = [];
+    let currentTab = 'all'; // 'all': 전체 펀딩, 'my': 내 펀딩
     let isCreating = false;
+    let editingFundingId = null;
+    let viewingDetailId = null;
 
     window.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       if (auth) {
         auth.onAuthStateChanged(user => {
           currentUser = user;
-          if (user) {
-            loadUserFundings();
-          } else {
-            render();
-          }
+          loadAllFundings();
         });
       } else {
-        render();
+        loadAllFundings();
       }
     });
 
@@ -73,26 +72,32 @@
     async function logout() {
       if (auth) await auth.signOut();
       currentUser = null;
-      userFundings = [];
+      editingFundingId = null;
+      isCreating = false;
+      viewingDetailId = null;
       render();
     }
 
-    async function loadUserFundings() {
-      if (!db || !currentUser) return;
+    // 모든 펀딩 데이터 불러오기
+    async function loadAllFundings() {
+      if (!db) return;
       try {
-        const snapshot = await db.collection('fundings')
-          .where('uid', '==', currentUser.uid)
-          .get();
-        userFundings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const snapshot = await db.collection('fundings').get();
+        allFundings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       } catch (e) {
         console.error("데이터 로드 실패:", e);
-        userFundings = [];
+        allFundings = [];
       }
       render();
     }
 
+    // 새 펀딩 생성
     async function createFunding(e) {
       e.preventDefault();
+      if (!currentUser) {
+        alert("로그인이 필요합니다.");
+        return;
+      }
       const title = document.getElementById('giftTitle').value;
       const amount = parseInt(document.getElementById('giftAmount').value, 10);
       const bank = document.getElementById('bankName').value;
@@ -111,49 +116,273 @@
         title,
         targetAmount: amount,
         currentAmount: 0,
+        status: 'active',
         bankName: bank,
         accountNumber: account,
         accountHolder: holder,
-        contributors: [],
+        contributors: [], // { name, amount, message, uid }
         createdAt: new Date().toISOString()
       };
 
-      if (db) {
-        try {
-          await db.collection('fundings').add(newFunding);
-          await loadUserFundings();
-        } catch (err) {
-          alert("저장 실패: " + err.message);
-          return;
-        }
+      try {
+        await db.collection('fundings').add(newFunding);
+        await loadAllFundings();
+        isCreating = false;
+      } catch (err) {
+        alert("저장 실패: " + err.message);
       }
-      
-      isCreating = false;
       render();
     }
 
+    // 펀딩 수정 제출
+    async function updateFunding(e, id) {
+      e.preventDefault();
+      const title = document.getElementById('editTitle').value;
+      const amount = parseInt(document.getElementById('editAmount').value, 10);
+      const bank = document.getElementById('editBank').value;
+      const account = document.getElementById('editAccount').value;
+      const holder = document.getElementById('editHolder').value;
+
+      if (!title || !amount || !bank || !account) {
+        alert("모든 필수 항목을 입력해 주세요.");
+        return;
+      }
+
+      try {
+        await db.collection('fundings').doc(id).update({
+          title,
+          targetAmount: amount,
+          bankName: bank,
+          accountNumber: account,
+          accountHolder: holder
+        });
+        await loadAllFundings();
+        editingFundingId = null;
+      } catch (err) {
+        alert("수정 실패: " + err.message);
+      }
+      render();
+    }
+
+    // 펀딩 종료 상태 변경
+    async function toggleCloseFunding(id, currentStatus) {
+      const nextStatus = currentStatus === 'closed' ? 'active' : 'closed';
+      if (!confirm(`정말로 이 펀딩을 ${nextStatus === 'closed' ? '종료' : '재개'}하시겠습니까?`)) return;
+
+      try {
+        await db.collection('fundings').doc(id).update({ status: nextStatus });
+        await loadAllFundings();
+      } catch (err) {
+        alert("상태 변경 실패: " + err.message);
+      }
+    }
+
+    // 펀딩 삭제
+    async function deleteFunding(id) {
+      if (!confirm("이 펀딩을 삭제하시겠습니까?")) return;
+      try {
+        await db.collection('fundings').doc(id).delete();
+        await loadAllFundings();
+      } catch (err) {
+        alert("삭제 실패: " + err.message);
+      }
+    }
+
+    // 후원 참여 제출
+    async function contributeFunding(e, fundingId) {
+      e.preventDefault();
+      const name = document.getElementById('contributorName').value;
+      const amount = parseInt(document.getElementById('contributorAmount').value, 10);
+      const message = document.getElementById('contributorMessage').value;
+
+      if (!name || !amount) {
+        alert("이름과 후원 금액을 입력해 주세요.");
+        return;
+      }
+
+      const fundingRef = db.collection('fundings').doc(fundingId);
+      try {
+        await db.runTransaction(async (transaction) => {
+          const doc = await transaction.get(fundingRef);
+          if (!doc.exists) throw new Error("펀딩이 존재하지 않습니다.");
+
+          const data = doc.data();
+          const contributors = data.contributors || [];
+          const newCurrentAmount = (data.currentAmount || 0) + amount;
+
+          contributors.push({
+            name,
+            amount,
+            message: message || "생일 축하해!",
+            uid: currentUser ? currentUser.uid : 'guest',
+            createdAt: new Date().toISOString()
+          });
+
+          transaction.update(fundingRef, {
+            currentAmount: newCurrentAmount,
+            contributors: contributors
+          });
+        });
+
+        alert("성공적으로 후원(참여)되었습니다!");
+        await loadAllFundings();
+      } catch (err) {
+        alert("후원 실패: " + err.message);
+      }
+      render();
+    }
+
+    // 화면 렌더링
     function render() {
       const container = document.getElementById('app');
       
-      if (!currentUser) {
+      // 상세 보기 화면인 경우
+      if (viewingDetailId) {
+        const item = allFundings.find(f => f.id === viewingDetailId);
+        if (!item) {
+          viewingDetailId = null;
+          render();
+          return;
+        }
+
+        const isOwner = currentUser && currentUser.uid === item.uid;
+        const pct = Math.min(100, Math.round((item.currentAmount / item.targetAmount) * 100));
+
         container.innerHTML = `
-          <div class="bg-white rounded-3xl shadow-xl p-8 text-center border border-slate-100 mt-10">
-            <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-500">
-              <i data-lucide="gift" class="w-8 h-8"></i>
-            </div>
-            <h1 class="text-2xl font-bold text-slate-800 mb-2">생일 선물 펀딩 만들기</h1>
-            <p class="text-slate-500 text-sm mb-6">구글 계정으로 로그인하여 나만의 생일 선물 펀딩을 생성하고 친구들에게 공유해 보세요!</p>
-            <button onclick="loginWithGoogle()" class="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl shadow-sm flex items-center justify-center gap-3 transition">
-              <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
-              Google 계정으로 시작하기
+          <div class="space-y-6">
+            <button onclick="viewingDetailId = null; render();" class="text-sm font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1">
+              <i data-lucide="arrow-left" class="w-4 h-4"></i> 목록으로 돌아가기
             </button>
+
+            <div class="bg-white rounded-3xl p-6 shadow-xl border border-slate-100 space-y-6">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="inline-block ${item.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-pink-100 text-pink-600'} text-xs font-bold px-2.5 py-1 rounded-full mb-1">
+                    ${item.status === 'closed' ? '종료된 펀딩' : '진행 중'}
+                  </span>
+                  <h2 class="text-2xl font-bold text-slate-800">${item.title}</h2>
+                  <p class="text-xs text-slate-400 mt-1">주최자: ${item.userName}</p>
+                </div>
+                <div class="text-right">
+                  <div class="text-2xl font-bold text-pink-500">${pct}%</div>
+                  <div class="text-xs text-slate-400">${item.currentAmount.toLocaleString()}원 / ${item.targetAmount.toLocaleString()}원</div>
+                </div>
+              </div>
+
+              <!-- 프로그레스 바 -->
+              <div class="w-full bg-slate-100 rounded-full h-4 overflow-hidden">
+                <div class="bg-pink-500 h-full transition-all duration-500" style="width: ${pct}%"></div>
+              </div>
+
+              <!-- 계좌 정보 (주최자에게만 또는 후원 안내용) -->
+              <div class="bg-pink-50 border border-pink-100 p-4 rounded-2xl space-y-2">
+                <div class="text-xs font-bold text-pink-600 flex items-center gap-1">
+                  <i data-lucide="credit-card" class="w-4 h-4"></i> 송금 계좌 안내
+                </div>
+                <div class="flex justify-between items-center text-sm">
+                  <span class="font-semibold text-slate-700">${item.bankName} ${item.accountNumber} (예금주: ${item.accountHolder})</span>
+                  <button onclick="navigator.clipboard.writeText('${item.accountNumber}'); alert('계좌번호가 복사되었습니다!');" class="bg-pink-500 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-pink-600 transition">복사</button>
+                </div>
+              </div>
+
+              <!-- 후원자 목록 (금액은 주최자만 열람 가능!) -->
+              <div class="space-y-3">
+                <h3 class="font-bold text-slate-700 text-sm flex items-center gap-1">
+                  <i data-lucide="message-square" class="w-4 h-4 text-pink-500"></i> 축하 메시지 및 후원 현황
+                </h3>
+                <div class="space-y-2 max-h-60 overflow-y-auto">
+                  ${(!item.contributors || item.contributors.length === 0) ? `
+                    <p class="text-xs text-slate-400 text-center py-4 bg-slate-50 rounded-xl">아직 참여한 친구가 없습니다. 첫 번째로 축하를 남겨보세요!</p>
+                  ` : item.contributors.map(c => `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                      <div>
+                        <div class="font-bold text-xs text-slate-700">${c.name}</div>
+                        <div class="text-xs text-slate-600 mt-0.5">"${c.message}"</div>
+                      </div>
+                      <div class="text-right">
+                        ${isOwner ? `
+                          <span class="text-xs font-bold text-pink-500 bg-pink-50 px-2 py-1 rounded-md border border-pink-100">${c.amount.toLocaleString()}원</span>
+                        ` : `
+                          <span class="text-xs text-slate-400 bg-slate-200/60 px-2 py-1 rounded-md">후원 완료 🎁</span>
+                        `}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- 후원 참여 폼 (펀딩 진행 중일 때만) -->
+              ${item.status !== 'closed' ? `
+                <form onsubmit="contributeFunding(event, '${item.id}')" class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                  <h4 class="text-xs font-bold text-slate-700">이 펀딩에 참여하기 (후원 및 메시지)</h4>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="contributorName" placeholder="내 이름 (닉네임)" class="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white" required />
+                    <input type="number" id="contributorAmount" placeholder="후원 금액 (원)" class="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white" required />
+                  </div>
+                  <input type="text" id="contributorMessage" placeholder="따뜻한 생일 축하 메시지를 남겨주세요!" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white" />
+                  <button type="submit" class="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-sm">후원 금액 송금 완료 & 메시지 남기기</button>
+                </form>
+              ` : `
+                <div class="bg-slate-100 text-center text-xs text-slate-500 py-3 rounded-xl font-medium">종료된 펀딩입니다.</div>
+              `}
+            </div>
           </div>
         `;
-      } else if (isCreating) {
+        lucide.createIcons();
+        return;
+      }
+
+      // 수정 화면인 경우
+      if (editingFundingId) {
+        const item = allFundings.find(f => f.id === editingFundingId);
         container.innerHTML = `
-          <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100 mt-10">
+          <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100 mt-6">
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-xl font-bold text-slate-800">새 선물 펀딩 만들기</h2>
+              <h2 class="text-xl font-bold text-slate-800">펀딩 수정하기</h2>
+              <button onclick="editingFundingId = null; render();" class="text-slate-400 hover:text-slate-600">
+                <i data-lucide="x" class="w-6 h-6"></i>
+              </button>
+            </div>
+            <form onsubmit="updateFunding(event, '${item.id}')" class="space-y-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">원하는 선물 이름</label>
+                <input type="text" id="editTitle" value="${item.title}" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">선물 총 가격 (원)</label>
+                <input type="number" id="editAmount" value="${item.targetAmount}" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">은행</label>
+                  <input type="text" id="editBank" value="${item.bankName}" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 mb-1">예금주</label>
+                  <input type="text" id="editHolder" value="${item.accountHolder}" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">계좌번호</label>
+                <input type="text" id="editAccount" value="${item.accountNumber}" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
+              </div>
+              <div class="pt-4 flex gap-3">
+                <button type="button" onclick="editingFundingId = null; render();" class="w-1/2 bg-slate-100 text-slate-600 font-medium py-3 rounded-xl hover:bg-slate-200 transition text-sm">취소</button>
+                <button type="submit" class="w-1/2 bg-pink-500 text-white font-semibold py-3 rounded-xl hover:bg-pink-600 shadow-md shadow-pink-200 transition text-sm">수정 완료</button>
+              </div>
+            </form>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      // 생성 화면인 경우
+      if (isCreating) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl shadow-xl p-8 border border-slate-100 mt-6">
+            <div class="flex items-center justify-between mb-6">
+              <h2 class="text-xl font-bold text-slate-800">새 생일 선물 펀딩 만들기</h2>
               <button onclick="isCreating = false; render();" class="text-slate-400 hover:text-slate-600">
                 <i data-lucide="x" class="w-6 h-6"></i>
               </button>
@@ -161,91 +390,141 @@
             <form onsubmit="createFunding(event)" class="space-y-4">
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">원하는 선물 이름</label>
-                <input type="text" id="giftTitle" placeholder="예: 소니 헤드폰 WH-1000XM5" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                <input type="text" id="giftTitle" placeholder="예: 소니 헤드폰 WH-1000XM5" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">선물 총 가격 (원)</label>
-                <input type="number" id="giftAmount" placeholder="380000" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                <input type="number" id="giftAmount" placeholder="50000" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">입금 받을 은행</label>
-                  <input type="text" id="bankName" placeholder="카카오뱅크" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                  <input type="text" id="bankName" placeholder="카카오뱅크" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-500 mb-1">예금주</label>
-                  <input type="text" id="accountHolder" placeholder="김지홍" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                  <input type="text" id="accountHolder" placeholder="김지홍" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
                 </div>
               </div>
               <div>
                 <label class="block text-xs font-semibold text-slate-500 mb-1">계좌번호</label>
-                <input type="text" id="accountNumber" placeholder="3333-01-2345678" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-pink-500" required />
+                <input type="text" id="accountNumber" placeholder="3333-01-2345678" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm" required />
               </div>
               <div class="pt-4 flex gap-3">
-                <button type="button" onclick="isCreating = false; render();" class="w-1/2 bg-slate-100 text-slate-600 font-medium py-3 rounded-xl hover:bg-slate-200 transition">취소</button>
-                <button type="submit" class="w-1/2 bg-pink-500 text-white font-semibold py-3 rounded-xl hover:bg-pink-600 shadow-md shadow-pink-200 transition">게시하기</button>
+                <button type="button" onclick="isCreating = false; render();" class="w-1/2 bg-slate-100 text-slate-600 font-medium py-3 rounded-xl hover:bg-slate-200 transition text-sm">취소</button>
+                <button type="submit" class="w-1/2 bg-pink-500 text-white font-semibold py-3 rounded-xl hover:bg-pink-600 shadow-md shadow-pink-200 transition text-sm">게시하기</button>
               </div>
             </form>
           </div>
         `;
-      } else {
-        container.innerHTML = `
-          <div class="space-y-6 mt-6">
-            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+        lucide.createIcons();
+        return;
+      }
+
+      // 메인 대시보드 화면
+      const displayedList = currentTab === 'all' 
+        ? allFundings 
+        : allFundings.filter(f => currentUser && f.uid === currentUser.uid);
+
+      container.innerHTML = `
+        <div class="space-y-6">
+          <!-- 상단 유저 바 -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+            ${currentUser ? `
               <div class="flex items-center gap-3">
                 <img src="${currentUser.photoURL || 'https://via.placeholder.com/40'}" class="w-10 h-10 rounded-full border" />
                 <div>
-                  <div class="font-bold text-slate-800 text-sm">${currentUser.displayName || '사용자'}</div>
+                  <div class="font-bold text-slate-800 text-sm">${currentUser.displayName || '사용자'}님</div>
                   <div class="text-xs text-slate-400">${currentUser.email}</div>
                 </div>
               </div>
               <button onclick="logout()" class="text-xs text-slate-500 hover:text-slate-800 underline">로그아웃</button>
-            </div>
+            ` : `
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-pink-100 rounded-full flex items-center justify-center text-pink-500">
+                  <i data-lucide="gift" class="w-4 h-4"></i>
+                </div>
+                <span class="text-xs font-bold text-slate-700">로그인하고 펀딩을 만들어보세요!</span>
+              </div>
+              <button onclick="loginWithGoogle()" class="bg-pink-500 text-white text-xs font-bold py-2 px-3 rounded-xl hover:bg-pink-600 transition">구글 로그인</button>
+            `}
+          </div>
 
-            <div class="flex items-center justify-between">
-              <h2 class="text-xl font-bold text-slate-800">내 펀딩 목록</h2>
-              <button onclick="isCreating = true; render();" class="bg-pink-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl hover:bg-pink-600 transition shadow-sm flex items-center gap-1.5">
-                <i data-lucide="plus" class="w-4 h-4"></i> 새 펀딩 등록
+          <!-- 탭 메뉴 & 새 펀딩 버튼 -->
+          <div class="flex justify-between items-center">
+            <div class="flex gap-2">
+              <button onclick="currentTab = 'all'; render();" class="px-4 py-2 rounded-xl text-xs font-bold transition ${currentTab === 'all' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200'}">
+                전체 펀딩 보기
+              </button>
+              <button onclick="currentTab = 'my'; render();" class="px-4 py-2 rounded-xl text-xs font-bold transition ${currentTab === 'my' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200'}">
+                내 펀딩 관리
               </button>
             </div>
+            ${currentUser ? `
+              <button onclick="isCreating = true; render();" class="bg-pink-500 text-white text-xs font-bold py-2.5 px-3.5 rounded-xl hover:bg-pink-600 transition shadow-sm flex items-center gap-1">
+                <i data-lucide="plus" class="w-4 h-4"></i> 펀딩 개설
+              </button>
+            ` : ''}
+          </div>
 
-            ${userFundings.length === 0 ? `
+          <!-- 펀딩 카드 리스트 -->
+          <div class="space-y-4">
+            ${displayedList.length === 0 ? `
               <div class="bg-white rounded-2xl p-8 text-center text-slate-400 border border-dashed border-slate-200">
                 <i data-lucide="gift" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
-                <p class="text-sm">아직 게시한 펀딩이 없습니다.<br>'새 펀딩 등록' 버튼을 눌러보세요!</p>
+                <p class="text-sm">${currentTab === 'my' ? '등록한 내 펀딩이 없습니다.' : '등록된 펀딩이 없습니다.'}</p>
               </div>
-            ` : userFundings.map(item => {
+            ` : displayedList.map(item => {
               const pct = Math.min(100, Math.round((item.currentAmount / item.targetAmount) * 100));
+              const isOwner = currentUser && currentUser.uid === item.uid;
+
               return `
-                <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-100 space-y-4">
-                  <div class="flex justify-none flex justify-between items-start">
+                <div class="bg-white rounded-3xl p-6 shadow-md border border-slate-100 space-y-4 relative">
+                  <div class="flex justify-between items-start">
                     <div>
-                      <span class="inline-block bg-pink-100 text-pink-600 text-xs font-bold px-2.5 py-1 rounded-full mb-1">진행 중</span>
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-block ${item.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-pink-100 text-pink-600'} text-xs font-bold px-2.5 py-1 rounded-full">
+                          ${item.status === 'closed' ? '종료됨' : '진행 중'}
+                        </span>
+                        <span class="text-xs text-slate-400">주최자: ${item.userName}</span>
+                      </div>
                       <h3 class="text-lg font-bold text-slate-800">${item.title}</h3>
                     </div>
                     <div class="text-right">
-                      <div class="text-lg font-bold text-pink-500">${pct}%</div>
+                      <div class="text-xl font-bold text-pink-500">${pct}%</div>
                     </div>
                   </div>
+
+                  <!-- 프로그레스 바 -->
                   <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                     <div class="bg-pink-500 h-full transition-all duration-500" style="width: ${pct}%"></div>
                   </div>
-                  <div class="flex justify-between text-xs text-slate-500 pt-1">
-                    <span>모인 금액: <strong>${item.currentAmount.toLocaleString()}원</strong></span>
+
+                  <div class="flex justify-between text-xs text-slate-500">
+                    <span>현재 모금액: <strong>${item.currentAmount.toLocaleString()}원</strong></span>
                     <span>목표: ${item.targetAmount.toLocaleString()}원</span>
                   </div>
-                  <div class="bg-slate-50 p-3 rounded-xl text-xs text-slate-600 flex justify-between items-center">
-                    <div>
-                      <span class="font-bold text-slate-700">${item.bankName}</span> ${item.accountNumber} (${item.accountHolder})
-                    </div>
-                    <button onclick="navigator.clipboard.writeText('${item.accountNumber}'); alert('계좌번호가 복사되었습니다!');" class="text-pink-500 hover:underline">복사</button>
+
+                  <!-- 하단 액션 버튼들 -->
+                  <div class="pt-2 flex items-center justify-between border-t border-slate-100">
+                    <button onclick="viewingDetailId = '${item.id}'; render();" class="text-xs font-bold text-pink-500 hover:underline flex items-center gap-1">
+                      <i data-lucide="eye" class="w-3.5 h-3.5"></i> 상세 보기 및 후원하기
+                    </button>
+
+                    ${isOwner ? `
+                      <div class="flex items-center gap-1.5">
+                        <button onclick="editingFundingId = '${item.id}'; render();" class="text-xs text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-lg hover:bg-slate-200 transition">수정</button>
+                        <button onclick="toggleCloseFunding('${item.id}', '${item.status || 'active'}')" class="text-xs text-amber-600 bg-amber-50 px-2.5 py-1.5 rounded-lg hover:bg-amber-100 transition">${item.status === 'closed' ? '재개' : '종료'}</button>
+                        <button onclick="deleteFunding('${item.id}')" class="text-xs text-red-600 bg-red-50 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition">삭제</button>
+                      </div>
+                    ` : ''}
                   </div>
                 </div>
               `;
             }).join('')}
           </div>
-        `;
-      }
+        </div>
+      `;
       lucide.createIcons();
     }
   </script>
